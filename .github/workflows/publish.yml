@@ -32,4 +32,4 @@ jobs:
         run: pnpm prepare
 
       - name: Publish
-        run: npx npm publish --provenance --access public --ignore-scripts
+        run: npx npm@11.12.1 publish --provenance --access public --ignore-scripts
