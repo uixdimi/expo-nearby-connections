@@ -66,6 +66,7 @@
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@types/react": "~19.2.0",
+    "expo": "~55.0.0",
     "expo-module-scripts": "^4.0.0",
     "nitrogen": "^0.35.5",
     "react": "19.2.0",
