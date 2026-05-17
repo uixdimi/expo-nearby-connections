@@ -1,6 +1,6 @@
 import { disconnect, sendText } from "expo-nearby-connections";
 import React, { useCallback, useEffect } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { GiftedChat, IMessage } from "react-native-gifted-chat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Header } from "../../components/header";
@@ -15,7 +15,7 @@ export const ChatScreen: React.FC<Props> = () => {
   const myDevice = param.params.myDevice;
   const targetDevice = param.params.targetDevice;
   const insets = useSafeAreaInsets();
-  const { data, setData } = usePayloadListener(targetDevice);
+  const { data, setData } = usePayloadListener([targetDevice]);
 
   useEffect(() => {
     return () => {
@@ -39,9 +39,7 @@ export const ChatScreen: React.FC<Props> = () => {
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
       <Header>Chat</Header>
-
       <GiftedChat
-        alwaysShowSend={true}
         messages={data}
         onSend={handleSendText}
         user={{ _id: myDevice.peerId, name: myDevice.name }}

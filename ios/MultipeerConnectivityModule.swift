@@ -15,20 +15,55 @@ public class MultipeerConnectivityModule: NSObject {
 
     weak var delegate: NearbyConnectionCallbackDelegate?
 
-    deinit {
-        self.advertiser?.stopAdvertisingPeer()
-        self.discovery?.stopBrowsingForPeers()
-        self.session?.disconnect()
+    private func clearPeerCaches() {
+        peerQueue.sync {
+            self.discoveredPeers.removeAll()
+            self.invitedPeers.removeAll()
+            self.connectedPeers.removeAll()
+        }
     }
 
-    public func startAdvertise(_ name: String) -> String {
-        // Tear down previous state before re-initializing
+    private func teardownIdentity() {
         self.advertiser?.stopAdvertisingPeer()
+        self.advertiser = nil
+        self.discovery?.stopBrowsingForPeers()
+        self.discovery = nil
         self.session?.disconnect()
         self.session = nil
+        self.myPeerId = nil
+        self.clearPeerCaches()
+    }
+
+    private func ensureIdentity(name: String) -> MCPeerID {
+        if let existingPeerId = self.myPeerId, let existingSession = self.session {
+            if existingPeerId.displayName == name {
+                existingSession.delegate = self
+                return existingPeerId
+            }
+
+            // A single MCSession/MCPeerID must back both advertising and browsing.
+            // Rebuild everything if the caller changes the local display name.
+            self.teardownIdentity()
+        }
 
         let peerId = MCPeerID(displayName: name)
         self.myPeerId = peerId
+
+        let session = MCSession(peer: peerId, securityIdentity: nil, encryptionPreference: .required)
+        session.delegate = self
+        self.session = session
+
+        return peerId
+    }
+
+    deinit {
+        self.teardownIdentity()
+    }
+
+    public func startAdvertise(_ name: String) -> String {
+        self.advertiser?.stopAdvertisingPeer()
+
+        let peerId = self.ensureIdentity(name: name)
         let discoveryInfo: [String: String] = [
             "incomingPeerId": String(peerId.hash),
             "incomingName": name
@@ -37,9 +72,6 @@ public class MultipeerConnectivityModule: NSObject {
 
         self.advertiser = MCNearbyServiceAdvertiser(peer: peerId, discoveryInfo: discoveryInfo, serviceType: serviceType)
         self.advertiser?.delegate = self
-
-        self.session = MCSession(peer: peerId, securityIdentity: nil, encryptionPreference: .required)
-        self.session?.delegate = self
 
         self.advertiser?.startAdvertisingPeer()
 
@@ -53,20 +85,13 @@ public class MultipeerConnectivityModule: NSObject {
     }
 
     public func startDiscovery(_ name: String) -> String {
-        // Tear down previous state before re-initializing
         self.discovery?.stopBrowsingForPeers()
-        self.session?.disconnect()
-        self.session = nil
 
-        let peerId = MCPeerID(displayName: name)
-        self.myPeerId = peerId
+        let peerId = self.ensureIdentity(name: name)
         let serviceType = InfoPlistParser.getServiceType()
 
         self.discovery = MCNearbyServiceBrowser(peer: peerId, serviceType: serviceType)
         self.discovery?.delegate = self
-
-        self.session = MCSession(peer: peerId, securityIdentity: nil, encryptionPreference: .required)
-        self.session?.delegate = self
 
         self.discovery?.startBrowsingForPeers()
 
@@ -126,12 +151,7 @@ public class MultipeerConnectivityModule: NSObject {
     }
 
     public func disconnect() {
-        self.advertiser?.stopAdvertisingPeer()
-        self.advertiser = nil
-        self.discovery?.stopBrowsingForPeers()
-        self.discovery = nil
-        self.session?.disconnect()
-        self.session = nil
+        self.teardownIdentity()
     }
 
     public func sendText(to peerId: String, payload text: String) throws {
@@ -188,7 +208,7 @@ extension MultipeerConnectivityModule: MCNearbyServiceBrowserDelegate {
 
     public func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
         let peerIdHash = String(peerID.hash)
-        peerQueue.sync {
+        _ = peerQueue.sync {
             self.discoveredPeers.removeValue(forKey: peerIdHash)
         }
         self.delegate?.onPeerLost(fromPeerId: peerIdHash)
@@ -205,7 +225,7 @@ extension MultipeerConnectivityModule: MCSessionDelegate {
             }
             self.delegate?.onConnected(fromPeerId: peerIdHash, fromPeerName: peerID.displayName)
         case .notConnected:
-            peerQueue.sync {
+            _ = peerQueue.sync {
                 self.connectedPeers.removeValue(forKey: peerIdHash)
             }
             self.delegate?.onDisconnected(fromPeerId: peerIdHash)
