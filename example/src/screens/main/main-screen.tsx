@@ -43,6 +43,10 @@ export const MainScreen: React.FC<Props> = () => {
     });
   }, [name]);
 
+  const handleOpenNearbyChat = useCallback(() => {
+    navigation.navigate("nearbyChat");
+  }, [navigation]);
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <Text style={styles.title}>P2P Nearby Chatting</Text>
@@ -67,6 +71,10 @@ export const MainScreen: React.FC<Props> = () => {
       <Separator />
 
       <JoinChannelButton name={name} disabled={!isGranted} />
+
+      <Separator />
+
+      <Button onPress={handleOpenNearbyChat}>Nearby chat</Button>
 
       <PlayServicesButton />
     </SafeAreaView>

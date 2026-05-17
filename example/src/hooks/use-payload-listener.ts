@@ -2,18 +2,22 @@ import { BasePeer, onTextReceived } from "expo-nearby-connections";
 import { useEffect, useState } from "react";
 import { GiftedChat, IMessage } from "react-native-gifted-chat";
 
-export function usePayloadListener(targetDevice: BasePeer) {
+export function usePayloadListener(connectedPeers: BasePeer[] = []) {
   const [data, setData] = useState<IMessage[]>([]);
 
   useEffect(() => {
     const unsubscribe = onTextReceived((data) => {
+      const peerName =
+        connectedPeers.find((peer) => peer.peerId === data.peerId)?.name ??
+        data.peerId;
+
       const newMessage = {
         _id: Date.now(),
         createdAt: new Date(),
         text: data.text,
         user: {
           _id: data.peerId,
-          name: targetDevice.name,
+          name: peerName,
         },
         received: true,
       } as IMessage;
@@ -26,7 +30,7 @@ export function usePayloadListener(targetDevice: BasePeer) {
     return () => {
       unsubscribe();
     };
-  }, [targetDevice.name]);
+  }, [connectedPeers]);
 
   return { data, setData };
 }
